@@ -140,6 +140,12 @@ type CacheVolumeID string
 // The `ChangesetID` scalar type represents an identifier for an object of type Changeset.
 type ChangesetID string
 
+// The `CheckGroupID` scalar type represents an identifier for an object of type CheckGroup.
+type CheckGroupID string
+
+// The `CheckID` scalar type represents an identifier for an object of type Check.
+type CheckID string
+
 // The `CloudID` scalar type represents an identifier for an object of type Cloud.
 type CloudID string
 
@@ -549,6 +555,24 @@ func (r *Binding) AsChangeset() *Changeset {
 	q := r.query.Select("asChangeset")
 
 	return &Changeset{
+		query: q,
+	}
+}
+
+// Retrieve the binding value, as type Check
+func (r *Binding) AsCheck() *Check {
+	q := r.query.Select("asCheck")
+
+	return &Check{
+		query: q,
+	}
+}
+
+// Retrieve the binding value, as type CheckGroup
+func (r *Binding) AsCheckGroup() *CheckGroup {
+	q := r.query.Select("asCheckGroup")
+
+	return &CheckGroup{
 		query: q,
 	}
 }
@@ -1010,6 +1034,291 @@ func (r *Changeset) Sync(ctx context.Context) (*Changeset, error) {
 	return &Changeset{
 		query: q.Root().Select("loadChangesetFromID").Arg("id", id),
 	}, nil
+}
+
+type Check struct {
+	query *querybuilder.Selection
+
+	context      *string
+	description  *string
+	executed     *bool
+	fullName     *string
+	functionName *string
+	id           *CheckID
+	message      *string
+	moduleName   *string
+	name         *string
+	success      *bool
+}
+
+func (r *Check) WithGraphQLQuery(q *querybuilder.Selection) *Check {
+	return &Check{
+		query: q,
+	}
+}
+
+func (r *Check) Context(ctx context.Context) (string, error) {
+	if r.context != nil {
+		return *r.context, nil
+	}
+	q := r.query.Select("context")
+
+	var response string
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+// The description of the check
+func (r *Check) Description(ctx context.Context) (string, error) {
+	if r.description != nil {
+		return *r.description, nil
+	}
+	q := r.query.Select("description")
+
+	var response string
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+// Whether the check was executed
+func (r *Check) Executed(ctx context.Context) (bool, error) {
+	if r.executed != nil {
+		return *r.executed, nil
+	}
+	q := r.query.Select("executed")
+
+	var response bool
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+// Return the fully qualified name of the check
+func (r *Check) FullName(ctx context.Context) (string, error) {
+	if r.fullName != nil {
+		return *r.fullName, nil
+	}
+	q := r.query.Select("fullName")
+
+	var response string
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+func (r *Check) FunctionName(ctx context.Context) (string, error) {
+	if r.functionName != nil {
+		return *r.functionName, nil
+	}
+	q := r.query.Select("functionName")
+
+	var response string
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+// A unique identifier for this Check.
+func (r *Check) ID(ctx context.Context) (CheckID, error) {
+	if r.id != nil {
+		return *r.id, nil
+	}
+	q := r.query.Select("id")
+
+	var response CheckID
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+// XXX_GraphQLType is an internal function. It returns the native GraphQL type name
+func (r *Check) XXX_GraphQLType() string {
+	return "Check"
+}
+
+// XXX_GraphQLIDType is an internal function. It returns the native GraphQL type name for the ID of this object
+func (r *Check) XXX_GraphQLIDType() string {
+	return "CheckID"
+}
+
+// XXX_GraphQLID is an internal function. It returns the underlying type ID
+func (r *Check) XXX_GraphQLID(ctx context.Context) (string, error) {
+	id, err := r.ID(ctx)
+	if err != nil {
+		return "", err
+	}
+	return string(id), nil
+}
+
+func (r *Check) MarshalJSON() ([]byte, error) {
+	id, err := r.ID(marshalCtx)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(id)
+}
+
+// A message emitted when running the check
+func (r *Check) Message(ctx context.Context) (string, error) {
+	if r.message != nil {
+		return *r.message, nil
+	}
+	q := r.query.Select("message")
+
+	var response string
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+func (r *Check) ModuleName(ctx context.Context) (string, error) {
+	if r.moduleName != nil {
+		return *r.moduleName, nil
+	}
+	q := r.query.Select("moduleName")
+
+	var response string
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+// The name of the check
+func (r *Check) Name(ctx context.Context) (string, error) {
+	if r.name != nil {
+		return *r.name, nil
+	}
+	q := r.query.Select("name")
+
+	var response string
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+func (r *Check) Success(ctx context.Context) (bool, error) {
+	if r.success != nil {
+		return *r.success, nil
+	}
+	q := r.query.Select("success")
+
+	var response bool
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+type CheckGroup struct {
+	query *querybuilder.Selection
+
+	id *CheckGroupID
+}
+type WithCheckGroupFunc func(r *CheckGroup) *CheckGroup
+
+// With calls the provided function with current CheckGroup.
+//
+// This is useful for reusability and readability by not breaking the calling chain.
+func (r *CheckGroup) With(f WithCheckGroupFunc) *CheckGroup {
+	return f(r)
+}
+
+func (r *CheckGroup) WithGraphQLQuery(q *querybuilder.Selection) *CheckGroup {
+	return &CheckGroup{
+		query: q,
+	}
+}
+
+// A unique identifier for this CheckGroup.
+func (r *CheckGroup) ID(ctx context.Context) (CheckGroupID, error) {
+	if r.id != nil {
+		return *r.id, nil
+	}
+	q := r.query.Select("id")
+
+	var response CheckGroupID
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+// XXX_GraphQLType is an internal function. It returns the native GraphQL type name
+func (r *CheckGroup) XXX_GraphQLType() string {
+	return "CheckGroup"
+}
+
+// XXX_GraphQLIDType is an internal function. It returns the native GraphQL type name for the ID of this object
+func (r *CheckGroup) XXX_GraphQLIDType() string {
+	return "CheckGroupID"
+}
+
+// XXX_GraphQLID is an internal function. It returns the underlying type ID
+func (r *CheckGroup) XXX_GraphQLID(ctx context.Context) (string, error) {
+	id, err := r.ID(ctx)
+	if err != nil {
+		return "", err
+	}
+	return string(id), nil
+}
+
+func (r *CheckGroup) MarshalJSON() ([]byte, error) {
+	id, err := r.ID(marshalCtx)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(id)
+}
+
+// Return a list of individual checks and their details
+func (r *CheckGroup) List(ctx context.Context) ([]Check, error) {
+	q := r.query.Select("list")
+
+	q = q.Select("id")
+
+	type list struct {
+		Id CheckID
+	}
+
+	convert := func(fields []list) []Check {
+		out := []Check{}
+
+		for i := range fields {
+			val := Check{id: &fields[i].Id}
+			val.query = q.Root().Select("loadCheckFromID").Arg("id", fields[i].Id)
+			out = append(out, val)
+		}
+
+		return out
+	}
+	var response []list
+
+	q = q.Bind(&response)
+
+	err := q.Execute(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return convert(response), nil
+}
+
+// Generate a markdown report
+func (r *CheckGroup) Report() *File {
+	q := r.query.Select("report")
+
+	return &File{
+		query: q,
+	}
+}
+
+// Execute all selected checks
+func (r *CheckGroup) Run() *CheckGroup {
+	q := r.query.Select("run")
+
+	return &CheckGroup{
+		query: q,
+	}
 }
 
 // Dagger Cloud configuration and state
@@ -4756,6 +5065,54 @@ func (r *Env) WithChangesetInput(name string, value *Changeset, description stri
 // Declare a desired Changeset output to be assigned in the environment
 func (r *Env) WithChangesetOutput(name string, description string) *Env {
 	q := r.query.Select("withChangesetOutput")
+	q = q.Arg("name", name)
+	q = q.Arg("description", description)
+
+	return &Env{
+		query: q,
+	}
+}
+
+// Create or update a binding of type CheckGroup in the environment
+func (r *Env) WithCheckGroupInput(name string, value *CheckGroup, description string) *Env {
+	assertNotNil("value", value)
+	q := r.query.Select("withCheckGroupInput")
+	q = q.Arg("name", name)
+	q = q.Arg("value", value)
+	q = q.Arg("description", description)
+
+	return &Env{
+		query: q,
+	}
+}
+
+// Declare a desired CheckGroup output to be assigned in the environment
+func (r *Env) WithCheckGroupOutput(name string, description string) *Env {
+	q := r.query.Select("withCheckGroupOutput")
+	q = q.Arg("name", name)
+	q = q.Arg("description", description)
+
+	return &Env{
+		query: q,
+	}
+}
+
+// Create or update a binding of type Check in the environment
+func (r *Env) WithCheckInput(name string, value *Check, description string) *Env {
+	assertNotNil("value", value)
+	q := r.query.Select("withCheckInput")
+	q = q.Arg("name", name)
+	q = q.Arg("value", value)
+	q = q.Arg("description", description)
+
+	return &Env{
+		query: q,
+	}
+}
+
+// Declare a desired Check output to be assigned in the environment
+func (r *Env) WithCheckOutput(name string, description string) *Env {
+	q := r.query.Select("withCheckOutput")
 	q = q.Arg("name", name)
 	q = q.Arg("description", description)
 
@@ -9847,6 +10204,27 @@ func (r *Client) CacheVolume(key string) *CacheVolume {
 	}
 }
 
+// ChecksOpts contains options for Client.Checks
+type ChecksOpts struct {
+	// Only include checks matching the specified patterns
+	Include []string
+}
+
+// Return available checks
+func (r *Client) Checks(opts ...ChecksOpts) *CheckGroup {
+	q := r.query.Select("checks")
+	for i := len(opts) - 1; i >= 0; i-- {
+		// `include` optional argument
+		if !querybuilder.IsZeroValue(opts[i].Include) {
+			q = q.Arg("include", opts[i].Include)
+		}
+	}
+
+	return &CheckGroup{
+		query: q,
+	}
+}
+
 // Dagger Cloud configuration and state
 func (r *Client) Cloud() *Cloud {
 	q := r.query.Select("cloud")
@@ -10266,6 +10644,26 @@ func (r *Client) LoadChangesetFromID(id ChangesetID) *Changeset {
 	q = q.Arg("id", id)
 
 	return &Changeset{
+		query: q,
+	}
+}
+
+// Load a Check from its ID.
+func (r *Client) LoadCheckFromID(id CheckID) *Check {
+	q := r.query.Select("loadCheckFromID")
+	q = q.Arg("id", id)
+
+	return &Check{
+		query: q,
+	}
+}
+
+// Load a CheckGroup from its ID.
+func (r *Client) LoadCheckGroupFromID(id CheckGroupID) *CheckGroup {
+	q := r.query.Select("loadCheckGroupFromID")
+	q = q.Arg("id", id)
+
+	return &CheckGroup{
 		query: q,
 	}
 }
