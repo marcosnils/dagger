@@ -1048,7 +1048,16 @@ type Check struct {
 	message      *string
 	moduleName   *string
 	name         *string
-	success      *bool
+	result       *CheckResult
+	resultEmoji  *string
+}
+type WithCheckFunc func(r *Check) *Check
+
+// With calls the provided function with current Check.
+//
+// This is useful for reusability and readability by not breaking the calling chain.
+func (r *Check) With(f WithCheckFunc) *Check {
+	return f(r)
 }
 
 func (r *Check) WithGraphQLQuery(q *querybuilder.Selection) *Check {
@@ -1057,6 +1066,7 @@ func (r *Check) WithGraphQLQuery(q *querybuilder.Selection) *Check {
 	}
 }
 
+// The context of the check. Can be a remote git address, or a local path
 func (r *Check) Context(ctx context.Context) (string, error) {
 	if r.context != nil {
 		return *r.context, nil
@@ -1198,16 +1208,40 @@ func (r *Check) Name(ctx context.Context) (string, error) {
 	return response, q.Execute(ctx)
 }
 
-func (r *Check) Success(ctx context.Context) (bool, error) {
-	if r.success != nil {
-		return *r.success, nil
+// Whether the check passed, failed or was skipped
+func (r *Check) Result(ctx context.Context) (CheckResult, error) {
+	if r.result != nil {
+		return *r.result, nil
 	}
-	q := r.query.Select("success")
+	q := r.query.Select("result")
 
-	var response bool
+	var response CheckResult
 
 	q = q.Bind(&response)
 	return response, q.Execute(ctx)
+}
+
+// An emoji representing the result of the check
+func (r *Check) ResultEmoji(ctx context.Context) (string, error) {
+	if r.resultEmoji != nil {
+		return *r.resultEmoji, nil
+	}
+	q := r.query.Select("resultEmoji")
+
+	var response string
+
+	q = q.Bind(&response)
+	return response, q.Execute(ctx)
+}
+
+// Set the result of the check
+func (r *Check) WithResult(result CheckResult) *Check {
+	q := r.query.Select("withResult")
+	q = q.Arg("result", result)
+
+	return &Check{
+		query: q,
+	}
 }
 
 type CheckGroup struct {
@@ -12713,6 +12747,67 @@ const (
 
 	// Shares the cache volume amongst many build pipelines, but will serialize the writes
 	CacheSharingModeLocked CacheSharingMode = "LOCKED"
+)
+
+// The result of a check.
+type CheckResult string
+
+func (CheckResult) IsEnum() {}
+
+func (v CheckResult) Name() string {
+	switch v {
+	case CheckResultPassed:
+		return "PASSED"
+	case CheckResultFailed:
+		return "FAILED"
+	case CheckResultSkipped:
+		return "SKIPPED"
+	default:
+		return ""
+	}
+}
+
+func (v CheckResult) Value() string {
+	return string(v)
+}
+
+func (v *CheckResult) MarshalJSON() ([]byte, error) {
+	if *v == "" {
+		return []byte(`""`), nil
+	}
+	name := v.Name()
+	if name == "" {
+		return nil, fmt.Errorf("invalid enum value %q", *v)
+	}
+	return json.Marshal(name)
+}
+
+func (v *CheckResult) UnmarshalJSON(dt []byte) error {
+	var s string
+	if err := json.Unmarshal(dt, &s); err != nil {
+		return err
+	}
+	switch s {
+	case "":
+		*v = ""
+	case "FAILED":
+		*v = CheckResultFailed
+	case "PASSED":
+		*v = CheckResultPassed
+	case "SKIPPED":
+		*v = CheckResultSkipped
+	default:
+		return fmt.Errorf("invalid enum value %q", s)
+	}
+	return nil
+}
+
+const (
+	CheckResultPassed CheckResult = "PASSED"
+
+	CheckResultFailed CheckResult = "FAILED"
+
+	CheckResultSkipped CheckResult = "SKIPPED"
 )
 
 // File type.

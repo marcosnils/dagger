@@ -9,21 +9,57 @@ import (
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
 	"github.com/dagger/dagger/dagql"
+	"github.com/dagger/dagger/dagql/call"
 	"github.com/vektah/gqlparser/v2/ast"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 )
 
+// NetworkProtocol is a GraphQL enum type.
+type CheckResult string
+
+var CheckResults = dagql.NewEnum[CheckResult]()
+
+var (
+	CheckResultPassed  = CheckResults.Register("PASSED")
+	CheckResultFailed  = CheckResults.Register("FAILED")
+	CheckResultSkipped = CheckResults.Register("SKIPPED")
+)
+
+func (r CheckResult) Type() *ast.Type {
+	return &ast.Type{
+		NamedType: "CheckResult",
+		NonNull:   true,
+	}
+}
+
+func (r CheckResult) TypeDescription() string {
+	return "The result of a check."
+}
+
+func (r CheckResult) Decoder() dagql.InputDecoder {
+	return CheckResults
+}
+
+func (r CheckResult) ToLiteral() call.Literal {
+	return CheckResults.Literal(r)
+}
+
 // Check represents a validation check with its result
 type Check struct {
-	Name         string `field:"true" doc:"The name of the check"`
-	Context      string `field:"true" doc:"The context of the check. Can be a remote git address, or a local path"`
-	Description  string `field:"true" doc:"The description of the check"`
-	Executed     bool   `field:"true" doc:"Whether the check was executed"`
-	Success      bool   `field:"true" doc:"Whether the check succeeded"`
-	Message      string `field:"true" doc:"A message emitted when running the check"`
-	ModuleName   string `field:"true"`
-	FunctionName string `field:"true"`
+	Name         string      `field:"true" doc:"The name of the check"`
+	Context      string      `field:"true" doc:"The context of the check. Can be a remote git address, or a local path"`
+	Description  string      `field:"true" doc:"The description of the check"`
+	Executed     bool        `field:"true" doc:"Whether the check was executed"`
+	Result       CheckResult `field:"true" doc:"Whether the check passed, failed or was skipped"`
+	Message      string      `field:"true" doc:"A message emitted when running the check"`
+	ModuleName   string      `field:"true"`
+	FunctionName string      `field:"true"`
+}
+
+func (c *Check) WithResult(result CheckResult) *Check {
+	c.Result = result
+	return c
 }
 
 func (*Check) Type() *ast.Type {
@@ -158,11 +194,11 @@ func (r *CheckGroup) Run(ctx context.Context) (*CheckGroup, error) {
 				}
 				span.End()
 			}()
-			success, message, err := check.Run(ctx)
+			result, message, err := check.Run(ctx)
 			if err != nil {
 				return err
 			}
-			r.Checks[i].Success = success
+			r.Checks[i].Result = result
 			r.Checks[i].Message = message
 			r.Checks[i].Executed = true
 			return nil
@@ -172,19 +208,28 @@ func (r *CheckGroup) Run(ctx context.Context) (*CheckGroup, error) {
 	return r, err
 }
 
+func (c *Check) ResultEmoji() string {
+	switch c.Result {
+	case CheckResultFailed:
+		return "🔴"
+	case CheckResultPassed:
+		return "🟢"
+	case CheckResultSkipped:
+		return "⏭️"
+	}
+	return ""
+}
+
 func (r *CheckGroup) Report(ctx context.Context) (*File, error) {
 	headers := []string{"check", "description", "success", "message"}
 	rows := [][]string{}
 	for _, check := range r.Checks {
-		var success string
-		if check.Executed {
-			if check.Success {
-				success = "🟢"
-			} else {
-				success = "🔴"
-			}
-		}
-		rows = append(rows, []string{check.FullName(), check.Description, success, check.Message})
+		rows = append(rows, []string{
+			check.FullName(),
+			check.Description,
+			check.ResultEmoji(),
+			check.Message,
+		})
 	}
 	contents := []byte(markdownTable(headers, rows...))
 	q, err := CurrentQuery(ctx)
@@ -209,13 +254,9 @@ func markdownTable(headers []string, rows ...[]string) string {
 
 func functionIsCheck(fn *Function) (string, bool, string) {
 	// For a function to be considered a check...
-	// 1. ...its name must start with "check"
-	name, hasPrefix := strings.CutPrefix(fn.Name, "check")
-	if !hasPrefix {
-		return "", false, fmt.Sprintf("function name %q does not start with 'check'", fn.Name)
-	}
-	if len(name) > 0 {
-		name = strings.ToLower(name[0:1]) + name[1:]
+	// 1. ...it must return a CheckResult
+	if fn.ReturnType.ToType().Name() != "CheckResult" {
+		return fn.Name, false, "function %q doesn't return a CheckResult"
 	}
 	// 2. ...it must have no required arguments
 	for _, arg := range fn.Args {
@@ -232,13 +273,9 @@ func functionIsCheck(fn *Function) (string, bool, string) {
 		if arg.DefaultValue != nil {
 			continue
 		}
-		return "", false, fmt.Sprintf("function %q has a non-optional argument %q", name, arg.Name)
+		return "", false, fmt.Sprintf("function %q has a non-optional argument %q", fn.Name, arg.Name)
 	}
-	// 3. ...it must return void
-	if fn.ReturnType.Kind != TypeDefKindVoid {
-		return "", false, fmt.Sprintf("function %q returns a non-void type %q", fn.Name, fn.ReturnType.ToType().NamedType)
-	}
-	return strings.TrimPrefix(name, "check"), true, ""
+	return fn.Name, true, ""
 }
 
 func (r *CheckGroup) Clone() *CheckGroup {
@@ -258,27 +295,27 @@ func (c *Check) FullName() string {
 }
 
 // Run executes the check and returns the result
-func (c *Check) Run(ctx context.Context) (bool, string, error) {
+func (c *Check) Run(ctx context.Context) (CheckResult, string, error) {
 	q, err := CurrentQuery(ctx)
 	if err != nil {
-		return false, "", err
+		return CheckResultFailed, "", err
 	}
 	deps, err := q.CurrentServedDeps(ctx)
 	if err != nil {
-		return false, "", err
+		return CheckResultFailed, "", err
 	}
 	srv, err := deps.Schema(ctx)
 	if err != nil {
-		return false, "", err
+		return CheckResultFailed, "", err
 	}
-	var result any
+	var result CheckResult
 	err = srv.Select(ctx, srv.Root(), &result,
 		dagql.Selector{Field: gqlFieldName(c.ModuleName)},
 		dagql.Selector{Field: gqlFieldName(c.FunctionName)},
 	)
 	if err != nil {
 		// FIXME: can't differentiate real errors from failed checks
-		return false, err.Error(), nil //nolint:nilerr
+		return CheckResultFailed, err.Error(), nil //nolint:nilerr
 	}
-	return true, "", nil
+	return result, "", nil
 }

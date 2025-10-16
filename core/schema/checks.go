@@ -36,6 +36,10 @@ func (s checksSchema) Install(srv *dagql.Server) {
 	dagql.Fields[*core.Check]{
 		dagql.Func("fullName", s.fullName).
 			Doc("Return the fully qualified name of the check"),
+		dagql.Func("resultEmoji", s.resultEmoji).
+			Doc("An emoji representing the result of the check"),
+		dagql.Func("withResult", s.withResult).
+			Doc("Set the result of the check"),
 	}.Install(srv)
 }
 
@@ -51,8 +55,18 @@ func (s checksSchema) checks(ctx context.Context, q *core.Query, args struct {
 	return core.CurrentChecks(ctx, include)
 }
 
+func (s checksSchema) withResult(ctx context.Context, parent *core.Check, args struct {
+	Result core.CheckResult
+}) (*core.Check, error) {
+	return parent.WithResult(args.Result), nil
+}
+
 func (s checksSchema) fullName(_ context.Context, parent *core.Check, args struct{}) (string, error) {
 	return parent.FullName(), nil
+}
+
+func (s checksSchema) resultEmoji(_ context.Context, parent *core.Check, args struct{}) (string, error) {
+	return parent.ResultEmoji(), nil
 }
 
 func (s checksSchema) list(ctx context.Context, parent *core.CheckGroup, args struct{}) ([]*core.Check, error) {
