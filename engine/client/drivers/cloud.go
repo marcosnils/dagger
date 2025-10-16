@@ -93,6 +93,7 @@ func (d *daggerCloudDriver) Provision(ctx context.Context, u *url.URL, opts *Dri
 
 	engineSpec, err := client.Engine(ctx, cloud.EngineRequest{
 		UniqueTag: u.Query().Get("unique-tag"),
+		Image:     u.Query().Get("image"),
 		Module:    module,
 		Function:  function,
 		ExecCmd:   execCmd,

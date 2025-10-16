@@ -102,6 +102,7 @@ type EngineRequest struct {
 	// UniqueTag overrides all values below. If set the API will provision a
 	// unique engine for the tag + engine version in question.
 	UniqueTag string   `json:"unique_tag,omitempty"`
+	Image     string   `json:"image,omitempty"`
 	Module    string   `json:"module,omitempty"`
 	Function  string   ` json:"function,omitempty"`
 	ExecCmd   []string `json:"exec_cmd,omitempty"`
@@ -170,10 +171,15 @@ func (c *Client) Engine(ctx context.Context, req EngineRequest) (*EngineSpec, er
 		tag = "main"
 	}
 
+	image := "registry.dagger.io/engine:" + tag
+	if req.Image != "" {
+		image = req.Image
+	}
+
 	// The only property that we can set is the Image tag.
 	// The rest will be handled by engine configs (follow-up).
 	engineSpec := &EngineSpec{
-		Image:     "registry.dagger.io/engine:" + tag,
+		Image:     image,
 		Module:    req.Module,
 		Function:  req.Function,
 		ExecCmd:   req.ExecCmd,
